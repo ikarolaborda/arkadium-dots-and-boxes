@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "baseUrl": ".",
+    "paths": {
+      "@dab/shared": ["../shared/src"],
+      "@dab/shared/*": ["../shared/src/*"]
+    }
+  },
+  "include": ["src/**/*", "test/**/*"]
+}

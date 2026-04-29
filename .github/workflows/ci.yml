@@ -1,0 +1,69 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: lint · typecheck · test · build
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: dots_and_boxes
+          POSTGRES_USER: dab
+          POSTGRES_PASSWORD: dab
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dab -d dots_and_boxes"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://dab:dab@localhost:5432/dots_and_boxes?schema=public
+      JWT_SECRET: ci-secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install workspaces
+        run: npm install --workspaces --include-workspace-root --no-audit --no-fund
+
+      - name: Generate Prisma client
+        run: npx --yes prisma generate --schema=backend/prisma/schema.prisma
+
+      - name: Apply migrations
+        run: npx --yes prisma migrate deploy --schema=backend/prisma/schema.prisma
+
+      - name: Typecheck
+        run: npm run typecheck --workspaces --if-present
+
+      - name: Test (backend)
+        run: npm test --workspace @dab/backend
+
+      - name: Build
+        run: npm run build --workspaces --if-present
+
+  docker-build:
+    name: docker build (compose)
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build images
+        run: docker compose -f ops/docker/docker-compose.yml build

@@ -1,0 +1,91 @@
+// Prisma schema for Dots and Boxes.
+// Source of truth for the relational model. Mirrored by domain entities
+// through application/ports and infrastructure/persistence/mappers.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = []
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum GameStatus {
+  WAITING
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
+model Player {
+  id          String         @id @db.Uuid
+  nickname    String         @db.VarChar(40)
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  hostedGames Game[]         @relation("HostedGames")
+  wonGames    Game[]         @relation("WonGames")
+  seats       GamePlayer[]
+  moves       Move[]
+
+  @@index([nickname])
+  @@map("players")
+}
+
+model Game {
+  id                  String       @id @db.Uuid
+  status              GameStatus   @default(WAITING)
+  gridSize            Int          @map("grid_size")
+  hostId              String       @map("host_id") @db.Uuid
+  host                Player       @relation("HostedGames", fields: [hostId], references: [id])
+  currentTurnSeatIdx  Int          @default(0) @map("current_turn_seat_idx")
+  state               Json         @db.JsonB
+  winnerId            String?      @map("winner_id") @db.Uuid
+  winner              Player?      @relation("WonGames", fields: [winnerId], references: [id])
+  draw                Boolean      @default(false)
+  createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  startedAt           DateTime?    @map("started_at") @db.Timestamptz(6)
+  completedAt         DateTime?    @map("completed_at") @db.Timestamptz(6)
+  players             GamePlayer[]
+  moves               Move[]
+
+  @@index([status])
+  @@index([completedAt])
+  @@index([winnerId])
+  @@map("games")
+}
+
+model GamePlayer {
+  gameId         String    @map("game_id") @db.Uuid
+  playerId       String    @map("player_id") @db.Uuid
+  seatIndex      Int       @map("seat_index")
+  score          Int       @default(0)
+  disconnectedAt DateTime? @map("disconnected_at") @db.Timestamptz(6)
+  joinedAt       DateTime  @default(now()) @map("joined_at") @db.Timestamptz(6)
+  game           Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  player         Player    @relation(fields: [playerId], references: [id])
+
+  @@id([gameId, playerId])
+  @@unique([gameId, seatIndex])
+  @@index([playerId])
+  @@map("game_players")
+}
+
+model Move {
+  id              String   @id @db.Uuid
+  gameId          String   @map("game_id") @db.Uuid
+  sequence        Int
+  playerId        String   @map("player_id") @db.Uuid
+  seatIndex       Int      @map("seat_index")
+  lineOrientation String   @map("line_orientation") @db.Char(1)
+  lineX           Int      @map("line_x")
+  lineY           Int      @map("line_y")
+  completedBoxes  Int      @default(0) @map("completed_boxes")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  game            Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  player          Player   @relation(fields: [playerId], references: [id])
+
+  @@unique([gameId, sequence])
+  @@index([gameId])
+  @@map("moves")
+}

@@ -1,0 +1,25 @@
+{
+  "name": "arkadium-dots-and-boxes",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Real-time multiplayer Dots and Boxes — NestJS backend, Vue3 frontend, PostgreSQL via Prisma, Socket.IO realtime",
+  "license": "MIT",
+  "author": "Ikaro Laborda <iclaborda@msn.com>",
+  "workspaces": [
+    "backend",
+    "frontend",
+    "shared"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "docker:up": "docker compose -f ops/docker/docker-compose.yml up --build -d",
+    "docker:down": "docker compose -f ops/docker/docker-compose.yml down",
+    "docker:logs": "docker compose -f ops/docker/docker-compose.yml logs -f"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
