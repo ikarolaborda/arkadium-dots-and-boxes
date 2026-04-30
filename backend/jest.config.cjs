@@ -8,6 +8,11 @@ module.exports = {
     '^@dab/shared$': '<rootDir>/../shared/src',
     '^@dab/shared/(.*)$': '<rootDir>/../shared/src/$1',
   },
+  /*
+   * Jest reads TypeScript sources directly via ts-jest, so we point at the
+   * shared/src tree (the tsc-built shared/dist is only required at runtime
+   * by the compiled backend container).
+   */
   transform: {
     '^.+\\.ts$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.json' }],
   },

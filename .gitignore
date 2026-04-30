@@ -17,3 +17,9 @@ coverage/
 .turbo/
 .claude/
 .serena/
+
+# TypeScript incremental build artefacts
+*.tsbuildinfo
+shared/dist/
+backend/dist/
+frontend/dist/

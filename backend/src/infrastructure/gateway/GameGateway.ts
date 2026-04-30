@@ -26,7 +26,7 @@ import { PlayerTokenService } from '../auth/PlayerToken';
 import { DisconnectionScheduler } from './DisconnectionScheduler';
 import { SocketIoGameBroadcaster } from './SocketIoGameBroadcaster';
 
-const FORFEIT_GRACE_MS = 30_000;
+const FORFEIT_GRACE_MS = Number(process.env.FORFEIT_GRACE_MS ?? 30_000);
 
 interface SocketContext {
   readonly playerId: string;
@@ -130,13 +130,19 @@ export class GameGateway
       );
       this.scheduler.cancel(state.id, asUuid(ctx.playerId));
       const snapshot = GameStateMapper.toSnapshot(state);
-      client.emit(ServerEvent.StateSnapshot, snapshot);
       this.broadcaster.emitPlayerJoined(state.id, {
         playerId: asUuid(ctx.playerId),
         seatIndex:
           state.seats.find((s) => s.playerId === ctx.playerId)?.seatIndex ?? -1,
         nickname: ctx.nickname,
       });
+      /*
+       * Broadcast the post-join snapshot to the whole room rather than just
+       * the joining socket. This is what flips other players from the
+       * waiting view (no line matrices yet) to the in-progress view when
+       * the lobby auto-starts the game on the second join.
+       */
+      this.broadcaster.emitSnapshot(state.id, snapshot);
     } catch (err) {
       this.handleError(client, err);
     }

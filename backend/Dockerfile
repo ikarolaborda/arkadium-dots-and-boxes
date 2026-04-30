@@ -10,7 +10,8 @@ ARG NODE_VERSION=20.18-alpine
 
 FROM node:${NODE_VERSION} AS base
 WORKDIR /app
-RUN addgroup -g 1001 -S nodejs && \
+RUN apk add --no-cache openssl libc6-compat && \
+    addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001 -G nodejs
 
 FROM base AS deps
@@ -26,9 +27,10 @@ COPY --from=deps /app/package.json ./package.json
 COPY tsconfig.base.json ./tsconfig.base.json
 COPY shared ./shared
 COPY backend ./backend
+RUN cd shared && npx tsc -b --force
 WORKDIR /app/backend
 RUN npx prisma generate --schema=prisma/schema.prisma
-RUN npx nest build
+RUN rm -f tsconfig.build.tsbuildinfo tsconfig.tsbuildinfo && npx tsc -p tsconfig.build.json
 
 FROM base AS prod-deps
 COPY package.json package-lock.json* ./
@@ -39,15 +41,16 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked \
 
 FROM node:${NODE_VERSION} AS runtime
 WORKDIR /app
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001 -G nodejs && \
-    apk add --no-cache wget
+RUN apk add --no-cache openssl libc6-compat wget && \
+    addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001 -G nodejs
 ENV NODE_ENV=production
 COPY --from=prod-deps --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --from=build --chown=nodejs:nodejs /app/backend/dist ./backend/dist
 COPY --from=build --chown=nodejs:nodejs /app/backend/prisma ./backend/prisma
 COPY --from=build --chown=nodejs:nodejs /app/backend/package.json ./backend/package.json
-COPY --from=build --chown=nodejs:nodejs /app/shared ./shared
+COPY --from=build --chown=nodejs:nodejs /app/shared/dist ./shared/dist
+COPY --from=build --chown=nodejs:nodejs /app/shared/package.json ./shared/package.json
 COPY --from=build --chown=nodejs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 USER nodejs
 EXPOSE 3001

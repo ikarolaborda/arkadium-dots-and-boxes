@@ -6,8 +6,8 @@
     "emitDecoratorMetadata": true,
     "baseUrl": ".",
     "paths": {
-      "@dab/shared": ["../shared/src"],
-      "@dab/shared/*": ["../shared/src/*"]
+      "@dab/shared": ["../shared/dist/index.d.ts"],
+      "@dab/shared/*": ["../shared/dist/*"]
     }
   },
   "include": ["src/**/*", "test/**/*"]
