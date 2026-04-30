@@ -121,6 +121,42 @@ export class GameService {
     this.broadcaster.emitPlayerDisconnected(gameId, playerId);
   }
 
+  /*
+   * recoverPendingForfeits is the startup sweeper that closes the gap left
+   * by the in-process disconnection scheduler: when the previous backend
+   * exited, every armed timer was lost. The persisted game_players row still
+   * carries disconnected_at, so on boot we re-arm a timer for the remaining
+   * grace, or fire the forfeit immediately if grace already lapsed.
+   */
+  public async recoverPendingForfeits(
+    graceMs: number,
+    schedule: (
+      gameId: Uuid,
+      playerId: Uuid,
+      delayMs: number,
+      forfeit: () => Promise<void>,
+    ) => void,
+  ): Promise<number> {
+    if (graceMs <= 0) {
+      return 0;
+    }
+    const pending = await this.games.listPendingDisconnects();
+    const now = Date.now();
+    for (const row of pending) {
+      const elapsed = now - row.disconnectedAt.getTime();
+      const remaining = Math.max(0, graceMs - elapsed);
+      schedule(row.gameId, row.playerId, remaining, () =>
+        this.forfeitOnTimeout(row.gameId, row.playerId),
+      );
+    }
+    if (pending.length > 0) {
+      this.logger.log(
+        `forfeit recovery: re-armed ${pending.length} pending disconnect timer(s)`,
+      );
+    }
+    return pending.length;
+  }
+
   public async forfeitOnTimeout(
     gameId: Uuid,
     playerId: Uuid,

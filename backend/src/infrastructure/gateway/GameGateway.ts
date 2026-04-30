@@ -81,6 +81,19 @@ export class GameGateway
         next(new Error('UNAUTHORIZED'));
       }
     });
+    /*
+     * Re-arm forfeit timers from persisted game_players.disconnected_at so
+     * a process restart does not silently abandon disconnected players.
+     * Fire-and-forget: if the sweep fails, log it and let humans diagnose
+     * — it must not block the gateway boot.
+     */
+    this.games
+      .recoverPendingForfeits(FORFEIT_GRACE_MS, (gameId, playerId, delayMs, forfeit) => {
+        this.scheduler.schedule(gameId, playerId, delayMs, forfeit);
+      })
+      .catch((err) => {
+        this.logger.error('forfeit recovery sweep failed', err as Error);
+      });
   }
 
   public handleConnection(client: Socket): void {

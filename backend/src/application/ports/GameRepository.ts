@@ -14,6 +14,12 @@ export interface PersistedMove {
   readonly createdAt: Date;
 }
 
+export interface PendingDisconnect {
+  readonly gameId: Uuid;
+  readonly playerId: Uuid;
+  readonly disconnectedAt: Date;
+}
+
 export interface CompletedGameSummary {
   readonly id: Uuid;
   readonly gridSize: number;
@@ -54,6 +60,13 @@ export interface GameRepository {
     playerId: Uuid,
     connected: boolean,
   ): Promise<void>;
+  /*
+   * listPendingDisconnects returns every (gameId, playerId) pair where the
+   * player is flagged disconnected on a game still IN_PROGRESS. Used by the
+   * startup forfeit-recovery sweeper to re-arm timers that were lost when the
+   * previous process exited — see ADR-0010.
+   */
+  listPendingDisconnects(): Promise<PendingDisconnect[]>;
   commitMove(command: CommitMoveCommand): Promise<void>;
   completeGame(state: GameState): Promise<void>;
   abandonGame(state: GameState): Promise<void>;

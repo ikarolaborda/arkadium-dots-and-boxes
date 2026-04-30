@@ -4,6 +4,7 @@ import {
   CommitMoveCommand,
   CompletedGameSummary,
   GameRepository,
+  PendingDisconnect,
 } from '../../../application/ports/GameRepository';
 import { GameState } from '../../../domain/game';
 import { GameStatus } from '../../../domain/game/GameStatus';
@@ -101,6 +102,26 @@ export class PrismaGameRepository implements GameRepository {
         state: serializeState(state) as unknown as object,
       },
     });
+  }
+
+  public async listPendingDisconnects(): Promise<PendingDisconnect[]> {
+    const client = this.uow.getClient();
+    const rows = await client.gamePlayer.findMany({
+      where: {
+        disconnectedAt: { not: null },
+        game: { status: PrismaGameStatus.IN_PROGRESS },
+      },
+      select: { gameId: true, playerId: true, disconnectedAt: true },
+    });
+    return rows.map((row) => ({
+      gameId: asUuid(row.gameId),
+      playerId: asUuid(row.playerId),
+      /*
+       * disconnectedAt is non-null because the where clause filters it,
+       * but Prisma's generated type includes the optional. Coerce here.
+       */
+      disconnectedAt: row.disconnectedAt as Date,
+    }));
   }
 
   public async setSeatConnection(

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Headers,
   Param,
@@ -54,8 +55,29 @@ export class GamesController {
   }
 
   @Get(':id')
-  public async get(@Param('id') id: string): Promise<unknown> {
+  public async get(
+    @Headers('authorization') auth: string | undefined,
+    @Param('id') id: string,
+  ): Promise<unknown> {
     const state = await this.games.loadSnapshot(asUuid(id));
+    /*
+     * Read access policy:
+     *   - completed and abandoned games are public (the history view already
+     *     exposes their summaries, and the spectator-mode plan in
+     *     ARCHITECTURE.md §6 treats finished games as broadcastable).
+     *   - waiting and in_progress games are restricted to seated participants
+     *     so a non-member can't poll the live board state via REST. JWT
+     *     identity proves who the caller is; seat membership proves they
+     *     belong here. Both must hold.
+     */
+    if (state.status === 'completed' || state.status === 'abandoned') {
+      return GameStateMapper.toSnapshot(state);
+    }
+    const claims = this.requireClaims(auth, '');
+    const seated = state.seats.some((s) => s.playerId === claims.playerId);
+    if (!seated) {
+      throw new ForbiddenException('not a participant of this game');
+    }
     return GameStateMapper.toSnapshot(state);
   }
 
