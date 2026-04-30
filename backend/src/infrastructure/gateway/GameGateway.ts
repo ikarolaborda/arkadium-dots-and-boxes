@@ -198,6 +198,22 @@ export class GameGateway
     }
     try {
       const state = await this.games.loadSnapshot(asUuid(payload.gameId));
+      /*
+       * Membership check before joining the broadcast room. Without this, any
+       * caller with a valid JWT and a known gameId would silently subscribe to
+       * the room and receive every state delta — leaking other players'
+       * games. The handshake JWT only proves identity; participation in the
+       * specific game is a separate predicate stored in game_players.
+       */
+      const seated = state.seats.some((s) => s.playerId === ctx.playerId);
+      if (!seated) {
+        this.emitError(
+          client,
+          ProtocolErrorCode.Unauthorized,
+          'not a participant of this game',
+        );
+        return;
+      }
       await client.join(SocketIoGameBroadcaster.roomFor(state.id));
       ctx.joinedGames.add(state.id);
       await this.games.setConnection(

@@ -42,6 +42,13 @@ export interface GameRepository {
   findById(id: Uuid): Promise<GameState | null>;
   listJoinable(limit: number): Promise<GameState[]>;
   joinSeat(gameId: Uuid, playerId: Uuid, nickname: string): Promise<GameState>;
+  /*
+   * startGame flips a WAITING row to IN_PROGRESS and persists the freshly
+   * initialised state (the line matrices). Distinct from commitMove because
+   * no move is recorded — the lobby orchestrates this when minPlayers is
+   * reached and the GameEngine is asked to allocate the board.
+   */
+  startGame(state: GameState): Promise<void>;
   setSeatConnection(
     gameId: Uuid,
     playerId: Uuid,

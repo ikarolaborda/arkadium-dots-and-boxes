@@ -81,14 +81,22 @@ export class LobbyService {
     if (game === null) {
       throw new GameNotFoundError(cmd.gameId);
     }
+    /*
+     * Already-seated short-circuit comes first so a participant can use
+     * game:join interchangeably with game:resume after a page refresh —
+     * even when the game is no longer in the WAITING phase. This keeps
+     * the client protocol simple ("just emit join with my token+gameId")
+     * without sacrificing the security guarantee that *unseated* players
+     * cannot enter an in-progress game.
+     */
+    if (game.seats.some((s) => s.playerId === cmd.playerId)) {
+      return game;
+    }
     if (game.status !== GameStatus.Waiting) {
       throw new GameNotJoinableError(`status=${game.status}`);
     }
     if (game.seats.length >= game.rules.maxPlayers) {
       throw new GameFullError();
-    }
-    if (game.seats.some((s) => s.playerId === cmd.playerId)) {
-      return game;
     }
     await this.players.upsert({
       id: cmd.playerId,
@@ -114,8 +122,7 @@ export class LobbyService {
         updated.rules,
         updated.seats,
       );
-      await this.games.completeGame; /* no-op: type guard, see below */
-      await this.replaceState(ready);
+      await this.games.startGame(ready);
       return ready;
     }
     return updated;
@@ -123,18 +130,5 @@ export class LobbyService {
 
   public async listJoinable(limit = 20): Promise<GameState[]> {
     return this.games.listJoinable(limit);
-  }
-
-  private async replaceState(state: GameState): Promise<void> {
-    /*
-     * Used to flip a WAITING game into IN_PROGRESS without recording it as
-     * a move. We piggyback on commitMove with a synthetic sequence-zero move
-     * marker would over-pollute the moves table, so we go through a dedicated
-     * repository path instead — see PrismaGameRepository.startGame.
-     */
-    const repo = this.games as unknown as { startGame?: (s: GameState) => Promise<void> };
-    if (repo.startGame !== undefined) {
-      await repo.startGame(state);
-    }
   }
 }
