@@ -34,8 +34,17 @@ interface SocketContext {
   readonly joinedGames: Set<string>;
 }
 
+/*
+ * The Socket.IO CORS origin must match the HTTP CORS origin set in
+ * main.ts (browsers reject `Access-Control-Allow-Origin: *` when
+ * credentials are sent). We resolve once here to keep the two in lockstep.
+ */
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN ?? '*';
 @WebSocketGateway({
-  cors: { origin: process.env.FRONTEND_ORIGIN ?? '*', credentials: true },
+  cors: {
+    origin: FRONTEND_ORIGIN === '*' ? true : FRONTEND_ORIGIN,
+    credentials: FRONTEND_ORIGIN !== '*',
+  },
 })
 export class GameGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect

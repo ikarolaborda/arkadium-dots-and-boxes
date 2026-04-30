@@ -161,22 +161,34 @@ export class GameService {
     gameId: Uuid,
     playerId: Uuid,
   ): Promise<void> {
-    const state = await this.games.findById(gameId);
-    if (state === null || state.status !== GameStatus.InProgress) {
+    /*
+     * Wrapped in the same UoW as commitMove so the read-then-write is
+     * atomic relative to a concurrent move. Without the transaction, a
+     * move that committed between findById and abandonGame would have
+     * its state.JSONB silently overwritten by the abandon UPDATE.
+     */
+    const result = await this.uow.transaction(async () => {
+      const state = await this.games.findById(gameId);
+      if (state === null || state.status !== GameStatus.InProgress) {
+        return null;
+      }
+      const seat = state.seats.find((s) => s.playerId === playerId);
+      if (seat === undefined) {
+        return null;
+      }
+      const abandoned = GameEngine.abandon(state, seat.seatIndex);
+      await this.games.abandonGame(abandoned);
+      return { abandoned, forfeitSeatIndex: seat.seatIndex };
+    });
+    if (result === null) {
       return;
     }
-    const seat = state.seats.find((s) => s.playerId === playerId);
-    if (seat === undefined) {
-      return;
-    }
-    const abandoned = GameEngine.abandon(state, seat.seatIndex);
-    await this.games.abandonGame(abandoned);
     this.broadcaster.emitGameEnded(gameId, {
-      winnerSeatIndex: abandoned.winnerSeatIndex,
-      draw: abandoned.draw,
+      winnerSeatIndex: result.abandoned.winnerSeatIndex,
+      draw: result.abandoned.draw,
     });
     this.logger.warn(
-      `game abandoned id=${gameId} forfeitSeat=${seat.seatIndex} winnerSeat=${abandoned.winnerSeatIndex}`,
+      `game abandoned id=${gameId} forfeitSeat=${result.forfeitSeatIndex} winnerSeat=${result.abandoned.winnerSeatIndex}`,
     );
   }
 }

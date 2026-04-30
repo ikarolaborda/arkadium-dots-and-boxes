@@ -39,6 +39,22 @@ const start = (): void => {
 
 onMounted(start);
 watch(() => session.token, start);
+/*
+ * Re-init when the route param changes without a full remount. Vue Router
+ * reuses the GameView component when navigating /games/A → /games/B, so
+ * onMounted does not fire again. Without this watch the user would stay
+ * subscribed to the previous game's room and receive the wrong state.
+ */
+watch(
+  () => props.id,
+  (next, prev) => {
+    if (next === prev) {
+      return;
+    }
+    game.leave();
+    start();
+  },
+);
 onBeforeUnmount(() => game.leave());
 </script>
 
