@@ -50,6 +50,12 @@ jobs:
       - name: Apply migrations
         run: npx --yes prisma migrate deploy --schema=backend/prisma/schema.prisma
 
+      # Backend tsconfig resolves @dab/shared via paths to ../shared/dist/index.d.ts
+      # (frontend reads ../shared/src directly, so it's unaffected). Build shared
+      # once here so backend typecheck and the later workspace build succeed.
+      - name: Build shared (prerequisite for backend typecheck/build)
+        run: npm run build --workspace @dab/shared
+
       - name: Typecheck
         run: npm run typecheck --workspaces --if-present
 
